@@ -27,8 +27,10 @@ namespace Mono.Cecil.Rocks {
 				return self;
 
 			var base_type = ResolveBaseType (self.DeclaringType);
+			var genericTypeParameterMapping = GenericTypeParameterMapping.Create (self.DeclaringType);
+			
 			while (base_type != null) {
-				var @base = GetMatchingMethod (base_type, self);
+				var @base = GetMatchingMethod (base_type, self, genericTypeParameterMapping);
 				if (@base != null)
 					return @base;
 
@@ -64,9 +66,10 @@ namespace Mono.Cecil.Rocks {
 			return base_type.Resolve ();
 		}
 
-		static MethodDefinition GetMatchingMethod (TypeDefinition type, MethodDefinition method)
+		static MethodDefinition GetMatchingMethod (TypeDefinition type, MethodDefinition method,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
-			return MetadataResolver.GetMethod (type.Methods, method);
+			return MetadataResolver.GetMethod (type.Methods, method, genericTypeParameterMapping);
 		}
 	}
 }

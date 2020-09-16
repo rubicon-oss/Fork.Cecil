@@ -9,11 +9,10 @@
 //
 
 using System;
-
+using System.Collections.Generic;
 using Mono.Collections.Generic;
 
 namespace Mono.Cecil {
-
 	public interface IAssemblyResolver : IDisposable {
 		AssemblyDefinition Resolve (AssemblyNameReference name);
 		AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters);
@@ -29,7 +28,6 @@ namespace Mono.Cecil {
 	[Serializable]
 #endif
 	public sealed class ResolutionException : Exception {
-
 		readonly MemberReference member;
 
 		public MemberReference Member {
@@ -79,7 +77,6 @@ namespace Mono.Cecil {
 	}
 
 	public class MetadataResolver : IMetadataResolver {
-
 		readonly IAssemblyResolver assembly_resolver;
 
 		public IAssemblyResolver AssemblyResolver {
@@ -122,6 +119,7 @@ namespace Mono.Cecil {
 					if (netmodule.Name == module_ref.Name)
 						return GetType (netmodule, type);
 				}
+
 				break;
 			}
 
@@ -182,7 +180,7 @@ namespace Mono.Cecil {
 		FieldDefinition GetField (TypeDefinition type, FieldReference reference)
 		{
 			while (type != null) {
-				var field = GetField (type.Fields, reference);
+				var field = GetField (type.Fields, reference, GenericTypeParameterMapping.Empty);
 				if (field != null)
 					return field;
 
@@ -195,7 +193,8 @@ namespace Mono.Cecil {
 			return null;
 		}
 
-		static FieldDefinition GetField (Collection<FieldDefinition> fields, FieldReference reference)
+		static FieldDefinition GetField (Collection<FieldDefinition> fields, FieldReference reference,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			for (int i = 0; i < fields.Count; i++) {
 				var field = fields [i];
@@ -203,7 +202,7 @@ namespace Mono.Cecil {
 				if (field.Name != reference.Name)
 					continue;
 
-				if (!AreSame (field.FieldType, reference.FieldType))
+				if (!AreSame (field.FieldType, reference.FieldType, genericTypeParameterMapping))
 					continue;
 
 				return field;
@@ -244,45 +243,48 @@ namespace Mono.Cecil {
 			return null;
 		}
 
-		public static MethodDefinition GetMethod (Collection<MethodDefinition> methods, MethodReference reference)
+		public static MethodDefinition GetMethod (Collection<MethodDefinition> methods, MethodReference reference,
+			GenericTypeParameterMapping genericTypeParameterMapping = null)
 		{
 			for (int i = 0; i < methods.Count; i++) {
-				var method = methods [i];
+				var methodDefinition = methods [i];
 
-				if (method.Name != reference.Name)
+				if (methodDefinition.Name != reference.Name)
 					continue;
 
-				if (method.HasGenericParameters != reference.HasGenericParameters)
+				if (methodDefinition.HasGenericParameters != reference.HasGenericParameters)
 					continue;
 
-				if (method.HasGenericParameters && method.GenericParameters.Count != reference.GenericParameters.Count)
+				if (methodDefinition.HasGenericParameters &&
+				    methodDefinition.GenericParameters.Count != reference.GenericParameters.Count)
 					continue;
 
-				if (!AreSame (method.ReturnType, reference.ReturnType))
+				if (!AreSame (methodDefinition.ReturnType, reference.ReturnType, genericTypeParameterMapping ?? GenericTypeParameterMapping.Empty))
 					continue;
 
-				if (method.IsVarArg () != reference.IsVarArg ())
+				if (methodDefinition.IsVarArg () != reference.IsVarArg ())
 					continue;
 
-				if (method.IsVarArg () && IsVarArgCallTo (method, reference))
-					return method;
+				if (methodDefinition.IsVarArg () && IsVarArgCallTo (methodDefinition, reference, genericTypeParameterMapping ?? GenericTypeParameterMapping.Empty))
+					return methodDefinition;
 
-				if (method.HasParameters != reference.HasParameters)
+				if (methodDefinition.HasParameters != reference.HasParameters)
 					continue;
 
-				if (!method.HasParameters && !reference.HasParameters)
-					return method;
+				if (!methodDefinition.HasParameters && !reference.HasParameters)
+					return methodDefinition;
 
-				if (!AreSame (method.Parameters, reference.Parameters))
+				if (!AreSame (methodDefinition.Parameters, reference.Parameters, genericTypeParameterMapping ?? GenericTypeParameterMapping.Empty))
 					continue;
 
-				return method;
+				return methodDefinition;
 			}
 
 			return null;
 		}
-
-		static bool AreSame (Collection<ParameterDefinition> a, Collection<ParameterDefinition> b)
+		
+		static bool AreSame (Collection<ParameterDefinition> a, Collection<ParameterDefinition> b,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			var count = a.Count;
 
@@ -292,14 +294,16 @@ namespace Mono.Cecil {
 			if (count == 0)
 				return true;
 
-			for (int i = 0; i < count; i++)
-				if (!AreSame (a [i].ParameterType, b [i].ParameterType))
+			for (int i = 0; i < count; i++) {
+				if (!AreSame (a [i].ParameterType, b [i].ParameterType, genericTypeParameterMapping))
 					return false;
+			}
 
 			return true;
 		}
 
-		static bool IsVarArgCallTo (MethodDefinition method, MethodReference reference)
+		static bool IsVarArgCallTo (MethodDefinition method, MethodReference reference,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (method.Parameters.Count >= reference.Parameters.Count)
 				return false;
@@ -308,23 +312,26 @@ namespace Mono.Cecil {
 				return false;
 
 			for (int i = 0; i < method.Parameters.Count; i++)
-				if (!AreSame (method.Parameters [i].ParameterType, reference.Parameters [i].ParameterType))
+				if (!AreSame (method.Parameters [i].ParameterType, reference.Parameters [i].ParameterType,
+					genericTypeParameterMapping))
 					return false;
 
 			return true;
 		}
 
-		static bool AreSame (TypeSpecification a, TypeSpecification b)
+		static bool AreSame (TypeSpecification a, TypeSpecification b,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
-			if (!AreSame (a.ElementType, b.ElementType))
+			if (!AreSame (a.ElementType, b.ElementType, genericTypeParameterMapping))
 				return false;
 
 			if (a.IsGenericInstance)
-				return AreSame ((GenericInstanceType) a, (GenericInstanceType) b);
+				return AreSame ((GenericInstanceType) a, (GenericInstanceType) b, genericTypeParameterMapping);
 
 			if (a.IsRequiredModifier || a.IsOptionalModifier)
-				return AreSame ((IModifierType) a, (IModifierType) b);
+				return AreSame ((IModifierType) a, (IModifierType) b, genericTypeParameterMapping);
 
+			// TODO: check arrays
 			if (a.IsArray)
 				return AreSame ((ArrayType) a, (ArrayType) b);
 
@@ -341,18 +348,20 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool AreSame (IModifierType a, IModifierType b)
+		static bool AreSame (IModifierType a, IModifierType b,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
-			return AreSame (a.ModifierType, b.ModifierType);
+			return AreSame (a.ModifierType, b.ModifierType, genericTypeParameterMapping);
 		}
 
-		static bool AreSame (GenericInstanceType a, GenericInstanceType b)
+		static bool AreSame (GenericInstanceType a, GenericInstanceType b,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (a.GenericArguments.Count != b.GenericArguments.Count)
 				return false;
 
 			for (int i = 0; i < a.GenericArguments.Count; i++)
-				if (!AreSame (a.GenericArguments [i], b.GenericArguments [i]))
+				if (!AreSame (a.GenericArguments [i], b.GenericArguments [i], genericTypeParameterMapping))
 					return false;
 
 			return true;
@@ -363,13 +372,20 @@ namespace Mono.Cecil {
 			return a.Position == b.Position;
 		}
 
-		static bool AreSame (TypeReference a, TypeReference b)
+		static bool AreSame (TypeReference a, TypeReference b,
+			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (ReferenceEquals (a, b))
 				return true;
 
 			if (a == null || b == null)
 				return false;
+
+			if (a is GenericParameter genericParameter &&
+			    genericTypeParameterMapping != null &&
+			    genericTypeParameterMapping.TryGetValue (genericParameter, out var mappedTypeReference) &&
+			    AreSame (mappedTypeReference, b, genericTypeParameterMapping))
+				return true;
 
 			if (a.etype != b.etype)
 				return false;
@@ -378,14 +394,14 @@ namespace Mono.Cecil {
 				return AreSame ((GenericParameter) a, (GenericParameter) b);
 
 			if (a.IsTypeSpecification ())
-				return AreSame ((TypeSpecification) a, (TypeSpecification) b);
+				return AreSame ((TypeSpecification) a, (TypeSpecification) b, genericTypeParameterMapping);
 
 			if (a.Name != b.Name || a.Namespace != b.Namespace)
 				return false;
 
 			//TODO: check scope
 
-			return AreSame (a.DeclaringType, b.DeclaringType);
+			return AreSame (a.DeclaringType, b.DeclaringType, genericTypeParameterMapping);
 		}
 	}
 }
