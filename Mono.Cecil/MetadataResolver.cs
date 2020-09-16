@@ -283,7 +283,7 @@ namespace Mono.Cecil {
 			return null;
 		}
 		
-		static bool AreSame (Collection<ParameterDefinition> a, Collection<ParameterDefinition> b,
+		public static bool AreSame (Collection<ParameterDefinition> a, Collection<ParameterDefinition> b,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			var count = a.Count;
@@ -302,7 +302,7 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool IsVarArgCallTo (MethodDefinition method, MethodReference reference,
+		public static bool IsVarArgCallTo (MethodDefinition method, MethodReference reference,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (method.Parameters.Count >= reference.Parameters.Count)
@@ -319,7 +319,7 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool AreSame (TypeSpecification a, TypeSpecification b,
+		public static bool AreSame (TypeSpecification a, TypeSpecification b,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (!AreSame (a.ElementType, b.ElementType, genericTypeParameterMapping))
@@ -338,7 +338,7 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool AreSame (ArrayType a, ArrayType b)
+		public static bool AreSame (ArrayType a, ArrayType b)
 		{
 			if (a.Rank != b.Rank)
 				return false;
@@ -348,13 +348,13 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool AreSame (IModifierType a, IModifierType b,
+		public static bool AreSame (IModifierType a, IModifierType b,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			return AreSame (a.ModifierType, b.ModifierType, genericTypeParameterMapping);
 		}
 
-		static bool AreSame (GenericInstanceType a, GenericInstanceType b,
+		public static bool AreSame (GenericInstanceType a, GenericInstanceType b,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (a.GenericArguments.Count != b.GenericArguments.Count)
@@ -367,12 +367,12 @@ namespace Mono.Cecil {
 			return true;
 		}
 
-		static bool AreSame (GenericParameter a, GenericParameter b)
+		public static bool AreSame (GenericParameter a, GenericParameter b, GenericTypeParameterMapping genericTypeParameterMapping)
 		{
-			return a.Position == b.Position;
+			return a.Position == b.Position && AreSame(a.DeclaringType, b.DeclaringType, genericTypeParameterMapping);
 		}
 
-		static bool AreSame (TypeReference a, TypeReference b,
+		public static bool AreSame (TypeReference a, TypeReference b,
 			GenericTypeParameterMapping genericTypeParameterMapping)
 		{
 			if (ReferenceEquals (a, b))
@@ -391,7 +391,7 @@ namespace Mono.Cecil {
 				return false;
 
 			if (a.IsGenericParameter)
-				return AreSame ((GenericParameter) a, (GenericParameter) b);
+				return AreSame ((GenericParameter) a, (GenericParameter) b, genericTypeParameterMapping);
 
 			if (a.IsTypeSpecification ())
 				return AreSame ((TypeSpecification) a, (TypeSpecification) b, genericTypeParameterMapping);
